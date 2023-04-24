@@ -1,5 +1,7 @@
 # Acorn 源码阅读
 
+acorn 初版代码，具有参考意义，可以大致了解 js 处理过程
+
 /demo/index.js 调试入口 
 
 acorn.js 是源码文件
