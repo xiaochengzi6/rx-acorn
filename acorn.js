@@ -34,7 +34,7 @@
   // [api]: https://developer.mozilla.org/en-US/docs/SpiderMonkey/Parser_API
 
   var options, input, inputLen, sourceFile;
-
+ 
   exports.parse = function(inpt, opts) {
     input = String(inpt); inputLen = input.length;
     setOptions(opts);
@@ -94,7 +94,7 @@
     // file in every node's `loc` object.
     sourceFile: null
   };
-
+  // 处理 options 给予默认参数
   function setOptions(opts) {
     options = opts || {};
     for (var opt in defaultOptions) if (!options.hasOwnProperty(opt))
@@ -216,6 +216,7 @@
   // of the error message, and then raises a `SyntaxError` with that
   // message.
 
+  // 抛错
   function raise(pos, message) {
     var loc = getLineInfo(input, pos);
     message += " (" + loc.line + ":" + loc.column + ")";
@@ -419,10 +420,16 @@
   // Test whether a given character code starts an identifier.
 
   function isIdentifierStart(code) {
+    // 小于 65 是符号并且 为 $
     if (code < 65) return code === 36;
+    // 65 到 91 区间的为 A-Z 返回 true
     if (code < 91) return true;
+    // 91 - 97 之间看是否是 下划线
     if (code < 97) return code === 95;
+    // a-z
     if (code < 123)return true;
+
+    // 大于 170 都是特殊符号
     return code >= 0xaa && nonASCIIidentifierStart.test(String.fromCharCode(code));
   }
 
@@ -442,14 +449,14 @@
 
   // These are used when `options.locations` is on, for the
   // `tokStartLoc` and `tokEndLoc` properties.
-
+  // 行数 列数
   function line_loc_t() {
     this.line = tokCurLine;
     this.column = tokPos - tokLineStart;
   }
 
   // Reset the token state. Used at the start of a parse.
-
+  // 默认 token 数据
   function initTokenState() {
     tokCurLine = 1;
     tokPos = tokLineStart = 0;
@@ -503,7 +510,7 @@
 
   // Called at the start of the parse and after every token. Skips
   // whitespace and comments, and.
-
+  // 跳过空格和注释
   function skipSpace() {
     while (tokPos < inputLen) {
       var ch = input.charCodeAt(tokPos);
@@ -677,13 +684,17 @@
 
     return false;
   }
-
+ // 入口
   function readToken(forceRegexp) {
     tokStart = tokPos;
+    // 配置
     if (options.locations) tokStartLoc = new line_loc_t;
+    // gettoken 传入正则
     if (forceRegexp) return readRegexp();
+    // 结束
     if (tokPos >= inputLen) return finishToken(_eof);
 
+    // 按顺序取出转为 charCode
     var code = input.charCodeAt(tokPos);
     // Identifier or keyword. '\uXXXX' sequences are allowed in
     // identifiers, so '\' also dispatches to that.
@@ -869,7 +880,9 @@
       if (isIdentifierChar(ch)) {
         if (containsEsc) word += input.charAt(tokPos);
         ++tokPos;
-      } else if (ch === 92) { // "\"
+      } 
+      // \u 的处理
+      else if (ch === 92) { // "\"
         if (!containsEsc) word = input.slice(start, tokPos);
         containsEsc = true;
         if (input.charCodeAt(++tokPos) != 117) // "u"
@@ -959,7 +972,7 @@
     this.end = null;
     if (sourceFile !== null) this.source = sourceFile;
   }
-
+ // 初始化节点
   function startNode() {
     var node = new node_t();
     if (options.locations)
@@ -1024,8 +1037,9 @@
 
   // Consume a semicolon, or, failing that, see if we are allowed to
   // pretend that there is a semicolon at this position.
-
+  // 使用 ; 号
   function semicolon() {
+    // 如果后没有逗号，要判断后面是否是文件的结尾，花括号的右边，新的一行
     if (!eat(_semi) && !canInsertSemicolon()) unexpected();
   }
 
@@ -1059,7 +1073,7 @@
   // statements, and wraps them in a Program node.  Optionally takes a
   // `program` argument.  If present, the statements will be appended
   // to its body instead of creating a new node.
-
+  // parse 开始处理
   function parseTopLevel(program) {
     lastStart = lastEnd = tokPos;
     if (options.locations) lastEndLoc = new line_loc_t;
@@ -1069,6 +1083,7 @@
 
     var node = program || startNode(), first = true;
     if (!program) node.body = [];
+    // 判断是否是 'eof' 文件结束语法
     while (tokType !== _eof) {
       var stmt = parseStatement();
       node.body.push(stmt);
@@ -1086,7 +1101,7 @@
   // regular expression literal. This is to handle cases like
   // `if (foo) /blah/.exec(foo);`, where looking at the previous token
   // does not help.
-
+  // \n charCode = 10
   function parseStatement() {
     if (tokType === _slash)
       readToken(true);
@@ -1249,6 +1264,7 @@
     case _var:
       next();
       node = parseVar(node);
+      // 查看是否使用 ;
       semicolon();
       return node;
 
@@ -1367,8 +1383,11 @@
       decl.id = parseIdent();
       if (strict && isStrictBadIdWord(decl.id.name))
         raise(decl.id.start, "Binding " + decl.id.name + " in strict mode");
+      // 如果存在等号
       decl.init = eat(_eq) ? parseExpression(true, noIn) : null;
+      
       node.declarations.push(finishNode(decl, "VariableDeclarator"));
+      // 如果不是 , 的话就退出
       if (!eat(_comma)) break;
     }
     return finishNode(node, "VariableDeclaration");
@@ -1385,12 +1404,14 @@
   // Parse a full expression. The arguments are used to forbid comma
   // sequences (in argument lists, array literals, or object literals)
   // or the `in` operator (in for loops initalization expressions).
-
+  // 表达式解析
   function parseExpression(noComma, noIn) {
     var expr = parseMaybeAssign(noIn);
+    // tokType 是不是 ,
     if (!noComma && tokType === _comma) {
       var node = startNodeFrom(expr);
       node.expressions = [expr];
+      // 处理 , 的情况
       while (eat(_comma)) node.expressions.push(parseMaybeAssign(noIn));
       return finishNode(node, "SequenceExpression");
     }
@@ -1399,9 +1420,10 @@
 
   // Parse an assignment expression. This includes applications of
   // operators like `+=`.
-
+  // 解析表达式 类型与  +=
   function parseMaybeAssign(noIn) {
     var left = parseMaybeConditional(noIn);
+    // 如果是 =, +=, -= 就会到这里处理
     if (tokType.isAssign) {
       var node = startNodeFrom(left);
       node.operator = tokVal;
@@ -1415,13 +1437,15 @@
   }
 
   // Parse a ternary conditional (`?:`) operator.
-
+  // 我猜这里处理三元表达式
   function parseMaybeConditional(noIn) {
     var expr = parseExprOps(noIn);
+    // 是  ? 吗
     if (eat(_question)) {
       var node = startNodeFrom(expr);
       node.test = expr;
       node.consequent = parseExpression(true);
+      // 是 : 
       expect(_colon);
       node.alternate = parseExpression(true, noIn);
       return finishNode(node, "ConditionalExpression");
@@ -1430,7 +1454,7 @@
   }
 
   // Start the precedence parser.
-
+  // 优先级解析
   function parseExprOps(noIn) {
     return parseExprOp(parseMaybeUnary(noIn), -1, noIn);
   }
@@ -1440,9 +1464,11 @@
   // `minPrec` provides context that allows the function to stop and
   // defer further parser to one of its callers when it encounters an
   // operator that has a lower precedence than the set it is parsing.
-
+  // 比如 intanceof 
   function parseExprOp(left, minPrec, noIn) {
+    // 取出 目前类型 的 binop 查看它的优先级
     var prec = tokType.binop;
+    // 并且不是 in 的情况
     if (prec != null && (!noIn || tokType !== _in)) {
       if (prec > minPrec) {
         var node = startNodeFrom(left);
@@ -1458,8 +1484,9 @@
   }
 
   // Parse unary operators, both prefix and postfix.
-
+ // 处理一元操作符，前缀和后缀
   function parseMaybeUnary(noIn) {
+    // 处理前缀
     if (tokType.prefix) {
       var node = startNode(), update = tokType.isUpdate;
       node.operator = tokVal;
@@ -1473,6 +1500,7 @@
       return finishNode(node, update ? "UpdateExpression" : "UnaryExpression");
     }
     var expr = parseExprSubscripts();
+    // 处理后缀
     while (tokType.postfix && !canInsertSemicolon()) {
       var node = startNodeFrom(expr);
       node.operator = tokVal;
@@ -1486,26 +1514,32 @@
   }
 
   // Parse call, dot, and `[]`-subscript expressions.
-
+  // 处理表达式 函数调用 && . && [] 
   function parseExprSubscripts() {
     return parseSubscripts(parseExprAtom());
   }
 
+  // 处理 下标 . () [] 
   function parseSubscripts(base, noCalls) {
+    // . 说明调用或取属性
     if (eat(_dot)) {
       var node = startNodeFrom(base);
       node.object = base;
       node.property = parseIdent(true);
       node.computed = false;
       return parseSubscripts(finishNode(node, "MemberExpression"), noCalls);
-    } else if (eat(_bracketL)) {
+    } 
+    // 数组
+    else if (eat(_bracketL)) {
       var node = startNodeFrom(base);
       node.object = base;
       node.property = parseExpression();
       node.computed = true;
       expect(_bracketR);
       return parseSubscripts(finishNode(node, "MemberExpression"), noCalls);
-    } else if (!noCalls && eat(_parenL)) {
+    } 
+    // 函数的调用
+    else if (!noCalls && eat(_parenL)) {
       var node = startNodeFrom(base);
       node.callee = base;
       node.arguments = parseExprList(_parenR, false);
@@ -1517,7 +1551,7 @@
   // expression, an expression started by a keyword like `function` or
   // `new`, or an expression wrapped in punctuation like `()`, `[]`,
   // or `{}`.
-
+ // 表达式可能是 function || new 的构造函数调用 或者是 () [] {} 这些符号
   function parseExprAtom() {
     switch (tokType) {
     case _this:
@@ -1539,7 +1573,7 @@
       node.raw = tokType.keyword
       next();
       return finishNode(node, "Literal");
-
+    // 如果是 ()
     case _parenL:
       var tokStartLoc1 = tokStartLoc, tokStart1 = tokStart;
       next();
@@ -1554,16 +1588,19 @@
         val.range = [tokStart1, tokEnd];
       expect(_parenR);
       return val;
-
+    
+    // 数组类型 [] 
     case _bracketL:
       var node = startNode();
       next();
       node.elements = parseExprList(_bracketR, true, true);
       return finishNode(node, "ArrayExpression");
 
+    // 对象类型
     case _braceL:
       return parseObj();
 
+    // 函数
     case _function:
       var node = startNode();
       next();
@@ -1653,7 +1690,7 @@
     while (!eat(_parenR)) {
       if (!first) expect(_comma); else first = false;
       node.params.push(parseIdent());
-    }
+    }   
 
     // Start a new scope with regard to labels and the `inFunction`
     // flag (restore them to their old value afterwards).
@@ -1689,6 +1726,7 @@
     while (!eat(close)) {
       if (!first) {
         expect(_comma);
+        // 尾逗号
         if (allowTrailingComma && options.allowTrailingCommas && eat(close)) break;
       } else first = false;
 

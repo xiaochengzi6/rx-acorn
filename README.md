@@ -1,5 +1,5 @@
-# Acorn
+# Acorn 源码阅读
 
-A tiny, fast JavaScript parser in JavaScript.
+/demo/index.js 调试入口 
 
-See http://marijnhaverbeke.nl/acorn/
+acorn.js 是源码文件
